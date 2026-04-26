@@ -104,9 +104,9 @@ def run_pipeline(dataset_name: str) -> None:
     print(f"\n[5/6] ML Predictions and Business Value...")
     for eng_id in engines_to_analyze:
         df_eng = test_df[test_df["engine_id"] == eng_id].copy()
-        actual_failure = df_eng["cycle"].max() + df_eng["RUL"].iloc[-1]
+        actual_failure = int(df_eng["cycle"].max() + df_eng["RUL"].iloc[-1])
         try:
-            ml_warning, proba_series = modeling.predict_failure_start(
+            ml_warning, _ = modeling.predict_failure_start(
                 model, df_eng
             )
             print(f"  Engine {eng_id} ML Warning: Cycle {ml_warning}")

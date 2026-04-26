@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+from sklearn.metrics import classification_report as cr
 import streamlit as st
 
 from src import data_processing, explainability, modeling
@@ -76,8 +77,8 @@ metrics = modeling.evaluate_model(
     save_path=Path(f"outputs/reports/{dataset_choice}_classification_report.txt"),
 )
 
-from sklearn.metrics import classification_report as cr
-
+# Reuse a single predict call — evaluate_model already called predict internally;
+# we call classification_report once here for the st.code display.
 y_pred = model.predict(X_test)
 report_str = cr(y_test, y_pred)
 st.code(report_str, language="text")

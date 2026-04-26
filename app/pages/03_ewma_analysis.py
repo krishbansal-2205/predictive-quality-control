@@ -116,7 +116,7 @@ with st.expander("📐 EWMA Formula & Parameters"):
 
 $$Z_t = \lambda\, x_t + (1 - \lambda)\, Z_{t-1}$$
 
-where $Z_0 = \bar{x}_{\text{init}}$ (mean of the first *init_window* observations).
+where $Z_0 = \lambda\, x_0 + (1-\lambda)\,\bar{x}_{\text{init}}$ (EWMA of the first observation against the baseline mean).
 
 **Control Limits**
 

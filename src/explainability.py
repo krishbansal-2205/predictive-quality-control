@@ -37,6 +37,10 @@ def generate_shap_values(
     X_sample = X_test.iloc[:sample_size].copy()
     explainer = shap.TreeExplainer(model)
     shap_vals = explainer.shap_values(X_sample)
+    # Normalise: some SHAP versions return a list [class0, class1] for
+    # binary classifiers. Always extract the class-1 (positive) SHAP array.
+    if isinstance(shap_vals, list):
+        shap_vals = shap_vals[1]
     return shap_vals, X_sample
 
 
@@ -126,8 +130,10 @@ def get_shap_dataframe(
         X_sample: Feature DataFrame matching *shap_values*.
 
     Returns:
-        DataFrame with one column per feature plus a
-        ``mean_abs_shap`` summary row-level column.
+        DataFrame with one column per feature containing the raw SHAP
+        value for that sample, plus a ``mean_abs_shap`` column holding
+        the mean absolute SHAP value across all features for each sample
+        (a per-row overall importance score).
     """
     df = pd.DataFrame(shap_values, columns=X_sample.columns, index=X_sample.index)
     df["mean_abs_shap"] = np.abs(shap_values).mean(axis=1)

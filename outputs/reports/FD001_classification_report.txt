@@ -1,0 +1,10 @@
+Classification Report - FD001
+=======================================================
+              precision    recall  f1-score   support
+
+           0       0.99      1.00      0.99     12764
+           1       0.82      0.62      0.70       332
+
+    accuracy                           0.99     13096
+   macro avg       0.90      0.81      0.85     13096
+weighted avg       0.99      0.99      0.99     13096

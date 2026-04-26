@@ -169,30 +169,6 @@ def evaluate_model(
 # ------------------------------------------------------------------ #
 # Prediction helpers                                                   #
 # ------------------------------------------------------------------ #
-def predict_failure_start(
-    model: XGBClassifier,
-    df_engine: pd.DataFrame,
-    threshold: float = 0.5,
-) -> Tuple[Optional[int], pd.Series]:
-    """Predict the first cycle at which failure probability exceeds a threshold.
-
-    Args:
-        model: Fitted classifier.
-        df_engine: Processed DataFrame for a single engine.
-        threshold: Decision threshold on the predicted probability.
-
-    Returns:
-        A ``(first_warning_cycle, proba_series)`` tuple.  The warning
-        cycle is ``None`` if the threshold is never exceeded.
-    """
-    proba = predict_proba_series(model, df_engine)
-    above = proba[proba > threshold]
-    if above.empty:
-        return None, proba
-    first_cycle = int(df_engine.loc[above.index[0], "cycle"])
-    return first_cycle, proba
-
-
 def predict_proba_series(
     model: XGBClassifier, df_engine: pd.DataFrame
 ) -> pd.Series:
@@ -203,11 +179,41 @@ def predict_proba_series(
         df_engine: Processed DataFrame for a single engine.
 
     Returns:
-        A :class:`pd.Series` of P(failure) indexed to match
-        *df_engine*.
+        A pd.Series of P(failure) with the ORIGINAL index of
+        df_engine preserved so that .loc[] lookups work correctly.
     """
     drop_cols = ["engine_id", "cycle", "RUL", "failure_within_window"]
     drop_cols = [c for c in drop_cols if c in df_engine.columns]
     X = df_engine.drop(columns=drop_cols)
     proba = model.predict_proba(X)[:, 1]
+    # CRITICAL: use df_engine.index, not a reset index
     return pd.Series(proba, index=df_engine.index, name="failure_proba")
+
+
+def predict_failure_start(
+    model: XGBClassifier,
+    df_engine: pd.DataFrame,
+    threshold: float = 0.3,
+) -> Tuple[Optional[int], pd.Series]:
+    """Predict the first cycle at which failure probability exceeds threshold.
+
+    Args:
+        model: Fitted classifier.
+        df_engine: Processed DataFrame for a single engine.
+        threshold: Decision threshold on the predicted probability.
+
+    Returns:
+        A ``(first_warning_cycle, proba_series)`` tuple. The warning
+        cycle is ``None`` if the threshold is never exceeded.
+    """
+    # Reset index on a copy so positional and label indexing are aligned
+    df_reset = df_engine.reset_index(drop=True)
+    proba = predict_proba_series(model, df_reset)
+
+    above = proba[proba > threshold]
+    if above.empty:
+        return None, proba
+
+    # above.index[0] is now a clean integer positional index
+    first_warning_cycle = int(df_reset.loc[above.index[0], "cycle"])
+    return first_warning_cycle, proba

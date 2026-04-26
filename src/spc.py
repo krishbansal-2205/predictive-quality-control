@@ -45,7 +45,10 @@ def calculate_ewma(
     """
     values = series.values.astype(float)
     z = np.empty_like(values)
-    z[0] = np.mean(values[:init_window])
+    # Initialise Z_0 using the EWMA recursion applied to the first
+    # observation, with the baseline mean as the prior.
+    mu_init = np.mean(values[:init_window])
+    z[0] = lambda_val * values[0] + (1 - lambda_val) * mu_init
 
     for t in range(1, len(values)):
         z[t] = lambda_val * values[t] + (1 - lambda_val) * z[t - 1]
@@ -71,7 +74,12 @@ def calculate_control_limits(
     """
     baseline = series.iloc[:init_window]
     mu = float(baseline.mean())
-    sigma = float(baseline.std())
+    # Use ddof=0 (population std) — consistent with classical SPC charting.
+    sigma = float(baseline.std(ddof=0))
+    # Guard: if the baseline is perfectly flat, fall back to a small
+    # epsilon so that UCL != LCL and the chart remains meaningful.
+    if sigma == 0.0:
+        sigma = 1e-6
     factor = 3 * sigma * np.sqrt(lambda_val / (2 - lambda_val))
     ucl = mu + factor
     lcl = mu - factor

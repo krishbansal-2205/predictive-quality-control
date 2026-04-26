@@ -70,6 +70,6 @@ st.dataframe(df_eng, use_container_width=True)
 
 st.info(
     "🔴 The **vertical red dashed line** marks the cycle at which "
-    "RUL ≤ 15 — this is the **Warning Zone**.  Any detection method "
+    "RUL ≤ 30 — this is the **Warning Zone**.  Any detection method "
     "should ideally trigger an alert *before* this point."
 )

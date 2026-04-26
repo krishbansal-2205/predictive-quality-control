@@ -71,8 +71,22 @@ def calculate_business_value(
     else:
         ml_lead = 0
 
-    ewma_saved = cost_defect if ewma_lead > 0 else 0
-    ml_saved = cost_defect if ml_lead > 0 else 0
+    MAX_VALID_LEAD = 50
+
+    ewma_saved = 0
+    if ewma_lead > 0:
+        if ewma_lead <= MAX_VALID_LEAD:
+            ewma_saved = cost_defect
+        else:
+            ewma_saved = -cost_false_alarm
+
+    ml_saved = 0
+    if ml_lead > 0:
+        if ml_lead <= MAX_VALID_LEAD:
+            ml_saved = cost_defect
+        else:
+            ml_saved = -cost_false_alarm
+
     ml_advantage = ml_saved - ewma_saved
 
     return {
@@ -113,9 +127,9 @@ def format_business_value_report(results: Dict) -> str:
         f"|  EWMA Lead Time       : {str(results['ewma_lead_time']) + ' cycles':>{w - 27}}|",
         f"|  ML Lead Time         : {str(results['ml_lead_time']) + ' cycles':>{w - 27}}|",
         "+" + "-" * w + "+",
-        f"|  EWMA Value Saved     : ${results['ewma_value_saved']:>{w - 29},}|",
-        f"|  ML Value Saved       : ${results['ml_value_saved']:>{w - 29},}|",
-        f"|  ML Advantage         : ${results['ml_advantage']:>{w - 29},}|",
+        f"|  EWMA Value Saved     : ${int(results['ewma_value_saved']):>{w - 29},}|",
+        f"|  ML Value Saved       : ${int(results['ml_value_saved']):>{w - 29},}|",
+        f"|  ML Advantage         : ${int(results['ml_advantage']):>{w - 29},}|",
         "+" + "-" * w + "+",
     ]
     return "\n".join(lines)
@@ -154,8 +168,8 @@ def plot_sensor_grid_plotly(
         horizontal_spacing=0.06,
     )
 
-    # Cycle at which RUL first drops to ≤ 15
-    warning_mask = df_eng["RUL"] <= 15
+    # Cycle at which RUL first drops to <= 30
+    warning_mask = df_eng["RUL"] <= 30
     warning_cycle = int(df_eng.loc[warning_mask, "cycle"].min()) if warning_mask.any() else None
 
     for idx, col in enumerate(sensor_cols):
@@ -217,6 +231,7 @@ def plot_probability_timeline_plotly(
     ml_warning_cycle: Optional[int],
     actual_failure_cycle: Union[int, float],
     dataset_name: str,
+    threshold: float = 0.3,
 ) -> go.Figure:
     """Plot ML failure probability over time for a single engine.
 
@@ -243,8 +258,8 @@ def plot_probability_timeline_plotly(
 
     # Decision threshold
     fig.add_hline(
-        y=0.5, line_dash="dash", line_color="red",
-        annotation_text="Threshold = 0.5",
+        y=threshold, line_dash="dash", line_color="red",
+        annotation_text=f"Threshold = {threshold}",
     )
 
     # ML warning
@@ -254,7 +269,7 @@ def plot_probability_timeline_plotly(
             line_width=2,
         )
         fig.add_annotation(
-            x=ml_warning_cycle, y=0.5,
+            x=ml_warning_cycle, y=threshold,
             text=f"ML Warning @ {ml_warning_cycle}",
             showarrow=True, arrowhead=2, font=dict(color="orange"),
         )

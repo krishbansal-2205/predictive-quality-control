@@ -9,12 +9,12 @@ Streamlit page: Side-by-side EWMA vs ML comparison.
 import sys
 from pathlib import Path
 
+# Insert project root BEFORE any src imports so the package is always found.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-import pandas as pd
+from src import data_processing, modeling, spc, utils  # noqa: E402
 import streamlit as st
-
-from src import data_processing, modeling, spc, utils
+import pandas as pd
 
 # ------------------------------------------------------------------ #
 # Page config                                                          #
@@ -72,7 +72,8 @@ def analyse_engine(eng_id: int, container):
     container.plotly_chart(fig_ewma, use_container_width=True)
 
     # ML
-    ml_warning, proba_series = modeling.predict_failure_start(model, df_eng)
+    ml_warning, proba_series = modeling.predict_failure_start(
+        model, df_eng, threshold=0.3)
     cycle_series = df_eng["cycle"].reset_index(drop=True)
     proba_reset = proba_series.reset_index(drop=True)
     fig_ml = utils.plot_probability_timeline_plotly(
@@ -105,7 +106,7 @@ def analyse_engine(eng_id: int, container):
     elif ml_warning is None:
         container.warning(
             f"⚠️ ML model did not predict failure for Engine {eng_id} "
-            "above the 0.5 threshold."
+            "above the 0.3 threshold."
         )
 
     return {
@@ -144,10 +145,10 @@ else:
     left, right = st.columns(2)
     with left:
         st.subheader(f"Engine {eng1}")
-        r1 = analyse_engine(eng1, st)
+        r1 = analyse_engine(eng1, left)
     with right:
         st.subheader(f"Engine {eng2}")
-        r2 = analyse_engine(eng2, st)
+        r2 = analyse_engine(eng2, right)
 
     st.markdown("---")
     st.subheader("Comparison Table")

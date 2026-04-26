@@ -84,7 +84,7 @@ with c3:
         "ML Warning Threshold",
         min_value=0.1,
         max_value=0.9,
-        value=0.5,
+        value=0.3,
         step=0.05,
     )
 
