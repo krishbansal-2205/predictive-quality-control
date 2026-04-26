@@ -1,0 +1,156 @@
+"""
+05_comparison.py
+----------------
+Streamlit page: Side-by-side EWMA vs ML comparison.
+- FD001 mode: single engine view.
+- FD003 mode: dual-engine view to highlight the SPC blind spot.
+"""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+import pandas as pd
+import streamlit as st
+
+from src import data_processing, modeling, spc, utils
+
+# ------------------------------------------------------------------ #
+# Page config                                                          #
+# ------------------------------------------------------------------ #
+dataset_choice = st.session_state.get("dataset_choice", "FD001")
+st.title(f"⚖️ EWMA vs ML Comparison — {dataset_choice}")
+
+
+# ------------------------------------------------------------------ #
+# Cached helpers                                                       #
+# ------------------------------------------------------------------ #
+@st.cache_data(show_spinner="Loading dataset…")
+def load_dataset(name: str):
+    """Load and cache the processed train/test DataFrames."""
+    return data_processing.prepare_dataset(name)
+
+
+@st.cache_resource(show_spinner="Loading model…")
+def cached_load_model(name: str):
+    """Load a persisted model (cached as a resource)."""
+    return modeling.load_model(name)
+
+
+train_df, test_df = load_dataset(dataset_choice)
+
+# ------------------------------------------------------------------ #
+# Model availability check                                             #
+# ------------------------------------------------------------------ #
+if not modeling.model_exists(dataset_choice):
+    st.warning(
+        f"⚠️ No trained model found for **{dataset_choice}**. "
+        "Please go to the **ML Model** page and train one first."
+    )
+    st.stop()
+
+model = cached_load_model(dataset_choice)
+engine_ids = sorted(test_df["engine_id"].unique())
+
+
+# ------------------------------------------------------------------ #
+# Helper: analyse one engine                                           #
+# ------------------------------------------------------------------ #
+def analyse_engine(eng_id: int, container):
+    """Run EWMA + ML analysis and render results in *container*."""
+    df_eng = test_df[test_df["engine_id"] == eng_id].copy()
+    if df_eng.empty:
+        container.error(f"Engine {eng_id} not found.")
+        return None
+
+    actual_failure = int(df_eng["cycle"].max() + df_eng["RUL"].iloc[-1])
+
+    # EWMA
+    ewma_result = spc.run_ewma_analysis(df_eng, "sensor_12")
+    fig_ewma = spc.plot_ewma_plotly(ewma_result, eng_id, dataset_choice)
+    container.plotly_chart(fig_ewma, use_container_width=True)
+
+    # ML
+    ml_warning, proba_series = modeling.predict_failure_start(model, df_eng)
+    cycle_series = df_eng["cycle"].reset_index(drop=True)
+    proba_reset = proba_series.reset_index(drop=True)
+    fig_ml = utils.plot_probability_timeline_plotly(
+        cycle_series, proba_reset, eng_id, ml_warning, actual_failure, dataset_choice,
+    )
+    container.plotly_chart(fig_ml, use_container_width=True)
+
+    # Metrics
+    breach = ewma_result["breach_cycle"]
+    mc1, mc2, mc3 = container.columns(3)
+    mc1.metric("EWMA Breach", str(breach) if breach else "No Breach")
+    mc2.metric("ML Warning", str(ml_warning) if ml_warning else "No Warning")
+
+    ewma_lead = (actual_failure - breach) if breach else 0
+    ml_lead = (actual_failure - ml_warning) if ml_warning else 0
+    advantage = ml_lead - ewma_lead
+    mc3.metric("ML Lead Advantage", f"{advantage} cycles")
+
+    # Alert boxes
+    if breach is None:
+        container.error(
+            f"❌ EWMA failed to detect failure for Engine {eng_id}. "
+            "This is the SPC blind spot in FD003."
+        )
+    if ml_warning is not None:
+        container.success(
+            f"✅ ML model successfully predicted failure for Engine {eng_id} "
+            f"at cycle {ml_warning}."
+        )
+    elif ml_warning is None:
+        container.warning(
+            f"⚠️ ML model did not predict failure for Engine {eng_id} "
+            "above the 0.5 threshold."
+        )
+
+    return {
+        "Engine ID": eng_id,
+        "EWMA Breach": breach if breach else "N/A",
+        "ML Warning": ml_warning if ml_warning else "N/A",
+        "Actual Failure": actual_failure,
+        "EWMA Lead Time": ewma_lead,
+        "ML Lead Time": ml_lead,
+    }
+
+
+# ------------------------------------------------------------------ #
+# FD001 mode: single engine                                            #
+# ------------------------------------------------------------------ #
+if dataset_choice == "FD001":
+    engine_id = st.selectbox("Select Engine", engine_ids, index=0)
+    analyse_engine(engine_id, st)
+
+# ------------------------------------------------------------------ #
+# FD003 mode: dual-engine comparison                                   #
+# ------------------------------------------------------------------ #
+else:
+    col_left, col_right = st.columns(2)
+    with col_left:
+        eng1 = st.selectbox("Engine 1", engine_ids, index=0, key="eng1")
+    with col_right:
+        eng2 = st.selectbox(
+            "Engine 2", engine_ids,
+            index=min(10, len(engine_ids) - 1),
+            key="eng2",
+        )
+
+    st.markdown("---")
+
+    left, right = st.columns(2)
+    with left:
+        st.subheader(f"Engine {eng1}")
+        r1 = analyse_engine(eng1, st)
+    with right:
+        st.subheader(f"Engine {eng2}")
+        r2 = analyse_engine(eng2, st)
+
+    st.markdown("---")
+    st.subheader("Comparison Table")
+    rows = [r for r in (r1, r2) if r is not None]
+    if rows:
+        st.dataframe(pd.DataFrame(rows), use_container_width=True)
