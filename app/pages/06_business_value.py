@@ -56,13 +56,24 @@ model = cached_load_model(dataset_choice)
 # ------------------------------------------------------------------ #
 engine_ids = sorted(test_df["engine_id"].unique())
 
+# Engines with true_RUL <= 30 at the data cutoff are the only ones
+# where the ML model can predict an imminent failure warning.
+_min_rul = test_df.groupby("engine_id")["RUL"].min()
+near_failure_ids = sorted(_min_rul[_min_rul <= 30].index.tolist())
+_default_engine = int(near_failure_ids[0]) if near_failure_ids else int(engine_ids[0])
+
 engine_id = st.number_input(
     "Engine ID",
     min_value=int(engine_ids[0]),
     max_value=int(engine_ids[-1]),
-    value=int(engine_ids[0]),
+    value=_default_engine,
     step=1,
 )
+if near_failure_ids:
+    st.caption(
+        f"💡 Engines with true RUL ≤ 30 at data cutoff "
+        f"(most likely to show an ML warning): {near_failure_ids[:15]}"
+    )
 
 c1, c2, c3 = st.columns(3)
 with c1:

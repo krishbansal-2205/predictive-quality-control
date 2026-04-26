@@ -53,6 +53,19 @@ if not modeling.model_exists(dataset_choice):
 model = cached_load_model(dataset_choice)
 engine_ids = sorted(test_df["engine_id"].unique())
 
+# Compute near-failure engines: min RUL per engine in the test sequence
+# equals true_RUL (the RUL at the last recorded cycle). Only engines
+# with true_RUL <= 30 can have failure_within_window=1 in the test set.
+_min_rul = test_df.groupby("engine_id")["RUL"].min()
+near_failure_ids = sorted(_min_rul[_min_rul <= 30].index.tolist())
+
+if near_failure_ids:
+    st.info(
+        f"💡 **Near-failure engines** (true RUL ≤ 30 cycles at data cutoff — "
+        f"select these to see the ML model trigger a warning): "
+        f"`{near_failure_ids[:15]}`"
+    )
+
 
 # ------------------------------------------------------------------ #
 # Helper: analyse one engine                                           #
@@ -123,7 +136,10 @@ def analyse_engine(eng_id: int, container):
 # FD001 mode: single engine                                            #
 # ------------------------------------------------------------------ #
 if dataset_choice == "FD001":
-    engine_id = st.selectbox("Select Engine", engine_ids, index=0)
+    _default_idx = (
+        engine_ids.index(near_failure_ids[0]) if near_failure_ids else 0
+    )
+    engine_id = st.selectbox("Select Engine", engine_ids, index=_default_idx)
     analyse_engine(engine_id, st)
 
 # ------------------------------------------------------------------ #
@@ -131,12 +147,18 @@ if dataset_choice == "FD001":
 # ------------------------------------------------------------------ #
 else:
     col_left, col_right = st.columns(2)
+    _idx1 = engine_ids.index(near_failure_ids[0]) if near_failure_ids else 0
+    _idx2 = (
+        engine_ids.index(near_failure_ids[1])
+        if len(near_failure_ids) > 1
+        else min(10, len(engine_ids) - 1)
+    )
     with col_left:
-        eng1 = st.selectbox("Engine 1", engine_ids, index=0, key="eng1")
+        eng1 = st.selectbox("Engine 1", engine_ids, index=_idx1, key="eng1")
     with col_right:
         eng2 = st.selectbox(
             "Engine 2", engine_ids,
-            index=min(10, len(engine_ids) - 1),
+            index=_idx2,
             key="eng2",
         )
 

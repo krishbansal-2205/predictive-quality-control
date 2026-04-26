@@ -61,11 +61,26 @@ init_window = st.sidebar.slider(
 )
 
 engine_ids = sorted(test_df["engine_id"].unique())
+
+# Engines where min RUL in the test sequence equals true_RUL.
+# Only engines with true_RUL <= 30 will ever have failure_within_window=1
+# in the test set — these are the only ones the ML model can fire on.
+_min_rul = test_df.groupby("engine_id")["RUL"].min()
+near_failure_ids = sorted(_min_rul[_min_rul <= 30].index.tolist())
+_default_engine = int(near_failure_ids[0]) if near_failure_ids else int(engine_ids[0])
+
+if near_failure_ids:
+    st.sidebar.success(
+        f"🔴 Near-failure engines (true RUL ≤ 30):\n{near_failure_ids[:15]}"
+    )
+else:
+    st.sidebar.warning("No engines with true RUL ≤ 30 found in test set.")
+
 engine_id = st.sidebar.number_input(
     "Engine ID",
     min_value=int(engine_ids[0]),
     max_value=int(engine_ids[-1]),
-    value=int(engine_ids[0]),
+    value=_default_engine,
     step=1,
 )
 

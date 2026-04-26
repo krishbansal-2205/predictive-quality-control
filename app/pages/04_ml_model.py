@@ -114,6 +114,7 @@ with st.expander("📋 About XGBoost Hyperparameters"):
 | `subsample` | 0.8 | Row sampling adds regularisation |
 | `colsample_bytree` | 0.8 | Feature sampling reduces correlation between trees |
 | `eval_metric` | logloss | Standard for binary classification |
+| `scale_pos_weight` | auto (≈5–6×) | Corrects class imbalance: ~5–6× more healthy rows than near-failure rows. Without this, failure probabilities are suppressed toward 0 and the 0.3 threshold is never reached |
 | `random_state` | 42 | Reproducibility |
 """
     )

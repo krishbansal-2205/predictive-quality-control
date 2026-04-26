@@ -65,6 +65,18 @@ def train_model(
     Returns:
         The fitted :class:`XGBClassifier`.
     """
+    # Compute scale_pos_weight to correct for class imbalance.
+    # Training data has ~5–6× more healthy rows than near-failure rows.
+    # Without this, XGBoost suppresses failure probabilities toward 0,
+    # making the 0.3 warning threshold unreachable for most engines.
+    n_neg = int((y_train == 0).sum())
+    n_pos = int((y_train == 1).sum())
+    scale_pos_weight = n_neg / n_pos if n_pos > 0 else 1.0
+    print(
+        f"  Class balance — neg: {n_neg:,}, pos: {n_pos:,}, "
+        f"scale_pos_weight: {scale_pos_weight:.2f}"
+    )
+
     model = XGBClassifier(
         n_estimators=200,
         max_depth=6,
@@ -72,6 +84,7 @@ def train_model(
         subsample=0.8,
         colsample_bytree=0.8,
         eval_metric="logloss",
+        scale_pos_weight=scale_pos_weight,
         random_state=42,
         n_jobs=-1,
     )
